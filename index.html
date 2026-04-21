@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>3c ネコカロリー計算</title>
+<title>C³ ネコカロリー計算</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700&family=DM+Serif+Display&display=swap" rel="stylesheet">
 <style>
@@ -376,6 +376,20 @@
   .breakdown-val { font-weight: 500; color: var(--text); white-space: nowrap; }
 
   #result-breakdown { margin: 10px 0 6px; }
+
+  .btn-clear-last {
+    font-family: inherit;
+    font-size: 11px;
+    color: var(--text3);
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 3px 10px;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .btn-clear-last:hover { color: var(--red); border-color: #F7C1C1; }
     text-align: center;
     padding: 12px;
     font-size: 11px;
@@ -387,7 +401,7 @@
 <body>
 
 <header>
-  <h1>3C<span class="sub">Calorie Calculator for Cats -ネコカロリー計算-</span></h1>
+  <h1>C³<span class="sub">Calorie Calculator for Cats -ネコカロリー計算-</span></h1>
 </header>
 
 <div class="container">
@@ -455,7 +469,10 @@
     <div class="result-card" id="result-card">
       <div class="result-header">
         <span class="result-label" id="result-label">計算結果</span>
-        <span class="badge" id="result-badge"></span>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <button class="btn-clear-last" onclick="clearLastCalc()" title="保存された計算結果をクリア">クリア</button>
+          <span class="badge" id="result-badge"></span>
+        </div>
       </div>
       <div class="metrics">
         <div class="metric">
@@ -515,6 +532,7 @@
 
 <script>
 const KEY = 'neko-foods-v1';
+const LAST_KEY = 'neko-last-v1';
 const DEFAULTS = [
   { id:1, name:'ロイヤルカナン インドア（ドライ）', kcal:362 },
   { id:2, name:'ヒルズ サイエンス・ダイエット 成猫（ドライ）', kcal:365 },
@@ -534,7 +552,7 @@ function load() {
     const s = localStorage.getItem(KEY);
     if (s) { const d = JSON.parse(s); foods = d.foods; nextId = d.nextId; }
     else { foods = DEFAULTS.map(f=>({...f})); nextId = 100; }
-  } catch { foods = DEFAULTS.map(f=>({...f})); nextId = 100; }
+  } catch(e) { foods = DEFAULTS.map(f=>({...f})); nextId = 100; }
 }
 
 function save() { localStorage.setItem(KEY, JSON.stringify({ foods, nextId })); }
@@ -580,7 +598,70 @@ function removeSlot(idx) {
   document.getElementById('btn-add-slot').disabled = false;
 }
 
-function renderList() {
+function saveLastCalc() {
+  const slots = [];
+  for (let i = 0; i < activeSlots; i++) {
+    const el = document.getElementById(`slot-${i}`);
+    if (el.style.display === 'none') continue;
+    slots.push({
+      foodId: parseInt(el.querySelector('.slot-food-select').value),
+      g: parseFloat(el.querySelector('.slot-gram').value)
+    });
+  }
+  const state = {
+    catName: document.getElementById('cat-name').value.trim(),
+    weight: document.getElementById('weight').value,
+    stage: document.getElementById('stage').value,
+    slots
+  };
+  localStorage.setItem(LAST_KEY, JSON.stringify(state));
+}
+
+function loadLastCalc() {
+  try {
+    const s = localStorage.getItem(LAST_KEY);
+    if (!s) return;
+    const d = JSON.parse(s);
+    document.getElementById('cat-name').value = d.catName || '';
+    document.getElementById('weight').value = d.weight || '';
+    document.getElementById('stage').value = d.stage || '1.2';
+    activeSlots = 1;
+    for (let i = 1; i < 3; i++) {
+      document.getElementById(`slot-${i}`).style.display = 'none';
+      document.querySelector(`#slot-${i} .slot-gram`).value = '';
+    }
+    document.getElementById('btn-add-slot').disabled = false;
+    d.slots.forEach((sl, i) => {
+      if (i >= 3) return;
+      if (i > 0) {
+        document.getElementById(`slot-${i}`).style.display = 'block';
+        activeSlots = i + 1;
+      }
+      const el = document.getElementById(`slot-${i}`);
+      const sel = el.querySelector('.slot-food-select');
+      if (foods.find(f => f.id === sl.foodId)) sel.value = sl.foodId;
+      el.querySelector('.slot-gram').value = sl.g;
+    });
+    document.getElementById('btn-add-slot').disabled = activeSlots >= 3;
+    calculate();
+  } catch(e) { /* 復元失敗時は無視 */ }
+}
+
+function clearLastCalc() {
+  if (!confirm('保存された計算結果をクリアしますか？')) return;
+  localStorage.removeItem(LAST_KEY);
+  document.getElementById('cat-name').value = '';
+  document.getElementById('weight').value = '';
+  document.getElementById('stage').value = '1.2';
+  for (let i = 1; i < 3; i++) {
+    document.getElementById(`slot-${i}`).style.display = 'none';
+    document.querySelector(`#slot-${i} .slot-gram`).value = '';
+  }
+  document.querySelectorAll('.slot-gram').forEach(el => el.value = '');
+  activeSlots = 1;
+  document.getElementById('btn-add-slot').disabled = false;
+  document.getElementById('result-card').classList.remove('visible');
+}
   const el = document.getElementById('food-list');
   document.getElementById('food-list-title').textContent = `登録済みキャットフード（${foods.length}件）`;
   if (!foods.length) { el.innerHTML='<div class="empty">キャットフードが登録されていません</div>'; return; }
@@ -719,11 +800,13 @@ function calculate() {
   const card = document.getElementById('result-card');
   card.classList.add('visible');
   setTimeout(() => card.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 50);
+  saveLastCalc();
 }
 
 load();
 renderSelect();
 renderList();
+loadLastCalc();
 </script>
 </body>
 </html>
