@@ -390,6 +390,8 @@
   }
 
   .btn-clear-last:hover { color: var(--red); border-color: #F7C1C1; }
+
+  footer {
     text-align: center;
     padding: 12px;
     font-size: 11px;
@@ -662,6 +664,7 @@ function clearLastCalc() {
   document.getElementById('btn-add-slot').disabled = false;
   document.getElementById('result-card').classList.remove('visible');
 }
+function renderList() {
   const el = document.getElementById('food-list');
   document.getElementById('food-list-title').textContent = `登録済みキャットフード（${foods.length}件）`;
   if (!foods.length) { el.innerHTML='<div class="empty">キャットフードが登録されていません</div>'; return; }
